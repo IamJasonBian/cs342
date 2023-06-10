@@ -3,6 +3,7 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
+
 LABEL_NAMES = ['background', 'kart', 'pickup', 'nitro', 'bomb', 'projectile']
 
 
@@ -14,20 +15,29 @@ class SuperTuxDataset(Dataset):
 
         WARNING: Do not perform data normalization here. 
         """
-        raise NotImplementedError('SuperTuxDataset.__init__')
+        self.dataset_path = dataset_path
+        with open(self.dataset_path + '/labels.csv', 'r') as f:
+            self.labels = f.readlines()
 
     def __len__(self):
         """
         Your code here
         """
-        raise NotImplementedError('SuperTuxDataset.__len__')
+        return len(self.labels)
 
     def __getitem__(self, idx):
         """
         Your code here
         return a tuple: img, label
         """
-        raise NotImplementedError('SuperTuxDataset.__getitem__')
+
+        #split the label into img_path and label (img_path is local path)
+        img_path, label = self.labels[idx].split(',')
+        
+        img = Image.open(self.dataset_path + '/' + img_path)
+        img = transforms.ToTensor()(img)
+        label = int(label)
+        return img, label
 
 
 def load_data(dataset_path, num_workers=0, batch_size=128):
