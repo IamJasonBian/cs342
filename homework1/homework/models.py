@@ -34,7 +34,9 @@ class LinearClassifier(torch.nn.Module):
         @x: torch.Tensor((B,3,64,64))
         @return: torch.Tensor((B,6))
         """
-        x = x.view(x.size(0), -1)
+        batch_size = x.size(0)
+        
+        x = x.view(batch_size, -1)
         x = self.linear(x)
         return x
 

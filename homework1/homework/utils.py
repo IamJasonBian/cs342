@@ -13,7 +13,8 @@ class SuperTuxDataset(Dataset):
         self.labels = []
         
         # Read labels from the CSV file
-        with open(os.path.join(dataset_path, 'labels.csv'), 'r') as file:
+        csv_path = os.path.join(dataset_path, 'labels.csv')
+        with open(csv_path, 'r') as file:
             csv_reader = csv.reader(file)
             next(csv_reader)  # Skip the header
             for row in csv_reader:

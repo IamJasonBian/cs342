@@ -1,8 +1,11 @@
 from .models import ClassificationLoss, model_factory, save_model
 from .utils import accuracy, load_data
 import torch
+import torch.utils.tensorboard as tb
 
 def train(args):
+
+    logger = tb.SummaryWriter('logs', flush_secs=1)
 
     #hardcoded params:
     dataset_path = 'data/train'
@@ -18,7 +21,7 @@ def train(args):
     args.learning_rate = 0.05
     dataset_path = 'data/train'
     args.batch_size = 16
-    args.num_epochs = 5    
+    args.num_epochs = 10    
 
     model = model_factory[args.model]()
     loss_fn = ClassificationLoss()
@@ -35,7 +38,10 @@ def train(args):
 
         # Iterate over the training batches
         for images, labels in train_loader:
+
+            #normalize gradient after use
             optimizer.zero_grad()
+
             output = model(images)
             loss = loss_fn(output, labels)
             loss.backward()
@@ -43,6 +49,9 @@ def train(args):
 
             train_loss += loss.item() * images.size(0)
             train_acc += accuracy(output, labels)
+
+            logger.add_scalar('loss', loss.item(), epoch)
+            logger.add_scalar('accuracy', accuracy(output, labels), epoch)
 
         # Calculate average loss and accuracy for the epoch
         train_loss /= len(train_loader.dataset)
