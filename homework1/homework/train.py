@@ -18,10 +18,13 @@ def train(args):
     args.batch_size = args.batch_size
     '''
 
-    args.learning_rate = 0.05
+    args.learning_rate = 0.005
     dataset_path = 'data/train'
     args.batch_size = 16
     args.num_epochs = 10    
+
+    print(args.learning_rate)
+    print(args.num_epochs)
 
     model = model_factory[args.model]()
     loss_fn = ClassificationLoss()
@@ -50,12 +53,14 @@ def train(args):
             train_loss += loss.item() * images.size(0)
             train_acc += accuracy(output, labels)
 
-            logger.add_scalar('loss', loss.item(), epoch)
-            logger.add_scalar('accuracy', accuracy(output, labels), epoch)
+            
 
         # Calculate average loss and accuracy for the epoch
         train_loss /= len(train_loader.dataset)
         train_acc /= len(train_loader)
+
+        logger.add_scalar('train_loss', train_loss, epoch)
+        logger.add_scalar('train_acc', train_acc, epoch)
 
         print(f"Epoch {epoch + 1}/{args.num_epochs}: "
               f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}")
