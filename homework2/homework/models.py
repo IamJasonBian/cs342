@@ -1,4 +1,7 @@
 import torch
+import torch.nn as nn
+import torch.nn.init as init
+import torch.nn.functional as F
 
 
 class CNNClassifier(torch.nn.Module):
@@ -6,7 +9,21 @@ class CNNClassifier(torch.nn.Module):
         """
         Your code here
         """
-        raise NotImplementedError('CNNClassifier.__init__')
+        super(CNNClassifier, self).__init__()
+        # 1 input image channel, 6 output channels, 5x5 square convolution
+        # kernel
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+
+        print("mid net")
+
+        # an affine operation: y = Wx + b
+        self.fc1 = nn.Linear(901*3, 120)  # 5*5 from image dimension 
+        
+        print("late net")
+
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
         """
@@ -14,7 +31,17 @@ class CNNClassifier(torch.nn.Module):
         @x: torch.Tensor((B,3,64,64))
         @return: torch.Tensor((B,6))
         """
-        raise NotImplementedError('CNNClassifier.forward')
+        x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
+        # If the size is a square, you can specify with a single number
+        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
+        x = torch.flatten(x, 1) # flatten all dimensions except the batch dimension
+        
+        print("forward")
+
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 
 def save_model(model):
