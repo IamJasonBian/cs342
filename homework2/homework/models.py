@@ -31,15 +31,15 @@ class CNNClassifier(torch.nn.Module):
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.conv2 = nn.Conv2d(6, 16, 5)
 
-        print("mid net")
+        #print("mid net")
 
         # an affine operation: y = Wx + b
         self.fc1 = nn.Linear(2704, 120)  # 5*5 from image dimension 
         
-        print("late net")
+        #print("late net")
 
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.fc3 = nn.Linear(84, 6)
 
     def forward(self, x):
         """
@@ -52,7 +52,7 @@ class CNNClassifier(torch.nn.Module):
         x = F.max_pool2d(F.relu(self.conv2(x)), 2)
         x = torch.flatten(x, 1) # flatten all dimensions except the batch dimension
         
-        print("forward")
+        #print("forward")
 
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
@@ -71,45 +71,43 @@ class ActivationType(str):
                          cls.SIGMOID])
 
     
-class ClassificationLoss(torch.nn.Module):
-    def __init__(self, class_weight=None,
-                 loss_type=LossType.SOFTMAX_CROSS_ENTROPY):
+import torch
+import torch.nn as nn
+
+class ClassificationLoss(nn.Module):
+    def __init__(self, class_weight=None, loss_type=LossType.SOFTMAX_CROSS_ENTROPY):
         super(ClassificationLoss, self).__init__()
-
         self.loss_type = loss_type
-        if loss_type == LossType.SOFTMAX_CROSS_ENTROPY:
-            self.criterion = torch.nn.CrossEntropyLoss(class_weight)
-        elif loss_type == LossType.BCE_WITH_LOGITS:
-            self.criterion = torch.nn.BCEWithLogitsLoss()
-        else:
-            raise TypeError(
-                "Unsupported loss type: %s. Supported loss type is: %s" % (
-                    loss_type, LossType.str()))
+        self.criterion = self.create_criterion(class_weight)
 
-    def forward(self, logits, target,
-                use_hierar=False,
-                is_multi=False,
-                *argvs):
-        device = logits.device
-        if use_hierar:
-            assert self.loss_type in [LossType.BCE_WITH_LOGITS,
-                                      LossType.SIGMOID_FOCAL_CROSS_ENTROPY]
-            if not is_multi:
-                target = torch.eye(self.label_size)[target].to(device)
-            hierar_penalty, hierar_paras, hierar_relations = argvs[0:3]
-            return self.criterion(logits, target) + \
-                   hierar_penalty * self.cal_recursive_regularize(hierar_paras,
-                                                                  hierar_relations,
-                                                                  device)
+    def create_criterion(self, class_weight):
+        if self.loss_type == LossType.SOFTMAX_CROSS_ENTROPY:
+            return nn.CrossEntropyLoss(class_weight)
+        elif self.loss_type == LossType.BCE_WITH_LOGITS:
+            return nn.BCEWithLogitsLoss()
         else:
-            if is_multi:
-                assert self.loss_type in [LossType.BCE_WITH_LOGITS,
-                                          LossType.SIGMOID_FOCAL_CROSS_ENTROPY]
-            else:
-                if self.loss_type not in [LossType.SOFTMAX_CROSS_ENTROPY,
-                                          LossType.SOFTMAX_FOCAL_CROSS_ENTROPY]:
-                    target = torch.eye(self.label_size)[target].to(device)
-            return self.criterion(logits, target)
+            raise TypeError("Unsupported loss type: %s. Supported loss type is: %s" % (self.loss_type, LossType.str()))
+
+    def forward(self, logits, target, use_hierar=False, is_multi=False, *argvs):
+        if use_hierar:
+            return self.hierarchical_loss(logits, target, argvs)
+        else:
+            return self.standard_loss(logits, target, is_multi)
+
+    def hierarchical_loss(self, logits, target, argvs):
+        assert self.loss_type in [LossType.BCE_WITH_LOGITS, LossType.SIGMOID_FOCAL_CROSS_ENTROPY]
+        target = torch.eye(self.label_size)[target].to(logits.device)
+        hierar_penalty, hierar_paras, hierar_relations = argvs[0:3]
+        return self.criterion(logits, target) + hierar_penalty * self.cal_recursive_regularize(hierar_paras, hierar_relations, logits.device)
+
+    def standard_loss(self, logits, target, is_multi):
+        if is_multi:
+            assert self.loss_type in [LossType.BCE_WITH_LOGITS, LossType.SIGMOID_FOCAL_CROSS_ENTROPY]
+        else:
+            if self.loss_type not in [LossType.SOFTMAX_CROSS_ENTROPY, LossType.SOFTMAX_FOCAL_CROSS_ENTROPY]:
+                target = torch.eye(self.label_size)[target].to(logits.device)
+        return self.criterion(logits, target)
+
 
 
 model_factory = {
