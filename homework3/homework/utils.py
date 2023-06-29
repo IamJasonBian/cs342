@@ -1,4 +1,5 @@
 import torch
+import os
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
@@ -12,6 +13,8 @@ DENSE_LABEL_NAMES = ['background', 'kart', 'track', 'bomb/projectile', 'pickup/n
 DENSE_CLASS_DISTRIBUTION = [0.52683655, 0.02929112, 0.4352989, 0.0044619, 0.00411153]
 
 
+
+
 class SuperTuxDataset(Dataset):
     def __init__(self, dataset_path):
         """
@@ -22,20 +25,38 @@ class SuperTuxDataset(Dataset):
         Hint: Do not store torch.Tensor's as data here, but use PIL images, torchvision.transforms expects PIL images
               for most transformations.
         """
-        raise NotImplementedError('SuperTuxDataset.__init__')
+        self.data = []
+        to_tensor = transforms.ToTensor()
+
+        # List all the files in the dataset_path
+        files = os.listdir(dataset_path)
+        
+        # Filter the files to get only those ending with '_seg.png'
+        image_files = [file for file in files if file.endswith('_seg.png')]
+
+        # Iterate over the filtered image files
+        for image_name in image_files:
+            # Replace this part with actual label fetching logic if available.
+            label_id = 0  # Assume that the label of the image is not known. 
+
+            # Load the image file
+            image = Image.open(os.path.join(dataset_path, image_name))
+            image.load()  # To avoid OS error for too many open files
+            self.data.append((to_tensor(image), label_id))
+
+
 
     def __len__(self):
         """
         Your code here
         """
-        raise NotImplementedError('SuperTuxDataset.__len__')
+        return len(self.data)
 
     def __getitem__(self, idx):
         """
         Your code here
         """
-        raise NotImplementedError('SuperTuxDataset.__getitem__')
-        return img, label
+        return self.data[idx]
 
 
 class DenseSuperTuxDataset(Dataset):
