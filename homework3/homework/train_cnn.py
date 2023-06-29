@@ -1,6 +1,6 @@
 from .models import CNNClassifier, save_model, model_factory
 
-from .utils import ConfusionMatrix, load_data, LABEL_NAMES
+from .utils import ConfusionMatrix, load_data, LABEL_NAMES, accuracy
 import torch
 import torchvision
 import torch.utils.tensorboard as tb
@@ -61,7 +61,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-m', '--model', choices=['cnn'], default='cnn')
-    parser.add_argument('-n', '--num_epoch', type=int, default=50)
+    parser.add_argument('-n', '--num_epoch', type=int, default=10)
     parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
     parser.add_argument('-c', '--continue_training', action='store_true')
 

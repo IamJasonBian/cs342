@@ -56,7 +56,7 @@ class SuperTuxDataset(Dataset):
         """
         Your code here
         """
-        return self.data[idx]
+        return self.data[idx] 
 
 
 class DenseSuperTuxDataset(Dataset):
@@ -142,6 +142,9 @@ class ConfusionMatrix(object):
     def per_class(self):
         return self.matrix / (self.matrix.sum(1, keepdims=True) + 1e-5)
 
+def accuracy(outputs, labels):
+    outputs_idx = outputs.max(1)[1].type_as(labels)
+    return outputs_idx.eq(labels).float().mean()
 
 if __name__ == '__main__':
     dataset = DenseSuperTuxDataset('dense_data/train', transform=dense_transforms.Compose(
