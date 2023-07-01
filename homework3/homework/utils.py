@@ -80,12 +80,12 @@ class DenseSuperTuxDataset(Dataset):
         return im, lbl
 
 
-def load_data(dataset_path, num_workers=0, batch_size=128, **kwargs):
+def load_data(dataset_path, num_workers=1, batch_size=128, **kwargs):
     dataset = SuperTuxDataset(dataset_path, **kwargs)
     return DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True, drop_last=True)
 
 
-def load_dense_data(dataset_path, num_workers=0, batch_size=32, **kwargs):
+def load_dense_data(dataset_path, num_workers=1, batch_size=32, **kwargs):
     dataset = DenseSuperTuxDataset(dataset_path, **kwargs)
     return DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True, drop_last=True)
 
