@@ -3,22 +3,27 @@ import torch.nn.functional as F
 
 
 class CNNClassifier(torch.nn.Module):
-    def __init__(self, layers=[16, 32, 64, 128], n_input_channels=1, n_output_channels=6, kernel_size=5):
+    def __init__(self, layers=[16, 32, 64, 128], n_input_channels=1, n_output_channels=6, kernel_size=5, dropout_p=0.5):
         super().__init__()
-        """
-        Your code here
-        Hint: Base this on yours or HW2 master solution if you'd like.
-        Hint: Overall model can be similar to HW2, but you likely need some architecture changes (e.g. ResNets)
-        """
-        
-        L = []
+
+        self.network = []
         c = n_input_channels
         for l in layers:
-            L.append(torch.nn.Conv2d(c, l, kernel_size, stride=2, padding=kernel_size//2))
-            L.append(torch.nn.ReLU())
+            self.network.extend([
+                torch.nn.Conv2d(c, l, kernel_size, stride=2, padding=kernel_size//2),
+                torch.nn.BatchNorm2d(l),  # Batch normalization
+                torch.nn.ReLU(),
+                torch.nn.Dropout(dropout_p)  # Dropout
+            ])
             c = l
-        self.network = torch.nn.Sequential(*L)
+        self.network = torch.nn.Sequential(*self.network)
         self.classifier = torch.nn.Linear(c, n_output_channels)
+
+    def forward(self, x):
+        x = self.network(x)
+        x = x.view(x.size(0), -1)  # Flatten tensor for classifier
+        return self.classifier(x)
+
 
     def forward(self, x):
         """
