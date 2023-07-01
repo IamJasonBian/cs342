@@ -23,8 +23,8 @@ def train(args):
     path = os.getcwd()
     print(path)
 
-    train_data = load_data('dense_data/train')
-    valid_data = load_data('dense_data/valid')
+    train_data = load_data('data/train')
+    valid_data = load_data('data/valid')
 
     for epoch in range(args.num_epoch):
         model.train()

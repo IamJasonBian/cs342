@@ -29,6 +29,7 @@ class TunedCNNClassifierGrader(Grader):
                 confusion.add(cls(img.to(device)).argmax(1).cpu(), label)
 
         self.accuracy = confusion.global_accuracy
+        print(self.accuracy)
 
     @Case(score=40)
     def test_accuracy(self, min_val=0.86, max_val=0.90):
