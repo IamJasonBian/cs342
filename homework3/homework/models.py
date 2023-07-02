@@ -1,59 +1,54 @@
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 
+
+class ResidualBlock(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, stride=1):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = torch.nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = torch.nn.BatchNorm2d(out_channels)
+        self.relu = torch.nn.ReLU(inplace=True)
+        self.conv2 = torch.nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        self.bn2 = torch.nn.BatchNorm2d(out_channels)
+        self.skip = torch.nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.skip = torch.nn.Sequential(
+                torch.nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                torch.nn.BatchNorm2d(out_channels)
+            )
+
+    def forward(self, x):
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += self.skip(x)
+        out = self.relu(out)
+        return out
 
 class CNNClassifier(torch.nn.Module):
-    def __init__(self, layers=[16, 32, 64, 128], n_input_channels=1, n_output_channels=6, kernel_size=5, dropout_p=0.5):
-        super().__init__()
+    def __init__(self, n_input_channels=1, n_output_channels=6, layers=[16, 32, 64, 128]):
+        super(CNNClassifier, self).__init__()
 
-        self.network = []
-        c = n_input_channels
-        for l in layers:
-            self.network.extend([
-                torch.nn.Conv2d(c, l, kernel_size, stride=2, padding=kernel_size//2),
-                torch.nn.BatchNorm2d(l),  # Batch normalization
-                torch.nn.ReLU(),
-                torch.nn.Dropout(dropout_p)  # Dropout
-            ])
-            c = l
-        self.network = torch.nn.Sequential(*self.network)
-        self.classifier = torch.nn.Linear(c, n_output_channels)
-
-    def forward(self, x):
-        x = self.network(x)
-        x = x.view(x.size(0), -1)  # Flatten tensor for classifier
-        return self.classifier(x)
-
+        self.in_channels = layers[0]
+        self.conv1 = torch.nn.Conv2d(n_input_channels, self.in_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = torch.nn.BatchNorm2d(self.in_channels)
+        self.relu = torch.nn.ReLU(inplace=True)
+        
+        layer_blocks = []
+        for idx, num_channels in enumerate(layers[1:]):
+            strides = 2 if idx == 0 else 1
+            layer_blocks.append(ResidualBlock(self.in_channels, num_channels, strides))
+            self.in_channels = num_channels
+        self.layers = torch.nn.Sequential(*layer_blocks)
+        self.avg_pool = torch.nn.AdaptiveAvgPool2d((1,1))
+        self.fc = torch.nn.Linear(self.in_channels, n_output_channels)
 
     def forward(self, x):
-        """
-        Your code here
-        @x: torch.Tensor((B,3,64,64))
-        @return: torch.Tensor((B,6))
-        Hint: Apply input normalization inside the network, to make sure it is applied in the grader
-        """
-        return self.classifier(self.network(x).mean(dim=[2, 3]))
-
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
-        super().__init__()
-        padding = kernel_size // 2
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, stride, padding)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-
-    def forward(self, x):
-        residual = x
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out += residual
-        out = F.relu(out)
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.layers(out)
+        out = self.avg_pool(out)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
         return out
 
 class FCN(nn.Module):

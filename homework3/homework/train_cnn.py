@@ -6,11 +6,18 @@ import torchvision
 import torch.utils.tensorboard as tb
 import os
 
+from .models import CNNClassifier, save_model, model_factory
+from os import path
+from .utils import ConfusionMatrix, load_data, LABEL_NAMES, accuracy
+import torch
+import torchvision
+import torch.utils.tensorboard as tb
+import os
+
 def train(args):
     model = model_factory[args.model]()
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    #print current directory
     path = os.getcwd()
     print(path)
 
@@ -19,16 +26,17 @@ def train(args):
 
     model.to(device)
     if args.continue_training:
-        from os import path
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), '%s.th' % args.model)))
 
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
     criterion = torch.nn.CrossEntropyLoss()
 
-
-
     train_data = load_data('dense_data/train')
     valid_data = load_data('dense_data/valid')
+
+    # Initialize confusion matrix for train and validation
+    cm_train = ConfusionMatrix(size=len(LABEL_NAMES))
+    cm_valid = ConfusionMatrix(size=len(LABEL_NAMES))
 
     for epoch in range(args.num_epoch):
         model.train()
@@ -46,6 +54,9 @@ def train(args):
             loss_vals.append(loss_val.detach().cpu().numpy())
             acc_vals.append(acc_val.detach().cpu().numpy())
 
+            # Update the confusion matrix
+            cm_train.add(logit.argmax(1), label)
+
             optimizer.zero_grad()
             loss_val.backward()
             optimizer.step()
@@ -58,10 +69,18 @@ def train(args):
             img, label = img.to(device), label.to(device)
             vacc_vals.append(accuracy(model(img), label).detach().cpu().numpy())
             valid_logger.add_scalar('accuracy', acc_val)
+            
+            # Update the confusion matrix
+            cm_valid.add(logit.argmax(1), label)
+
         avg_vacc = sum(vacc_vals) / len(vacc_vals)
 
         print('epoch %-3d \t loss = %0.3f \t acc = %0.3f \t val acc = %0.3f' % (epoch, avg_loss, avg_acc, avg_vacc))
+        print('Confusion Matrix Training Class Accuracy:', cm_train.class_accuracy)
+        print('Confusion Matrix Validation Class Accuracy:', cm_valid.class_accuracy)
+
     save_model(model)
+
 
 if __name__ == '__main__':
     import argparse
