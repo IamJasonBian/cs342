@@ -1,4 +1,7 @@
 import torch
+import warnings
+# Suppress PyTorch warnings
+warnings.filterwarnings("ignore")
 import numpy as np
 
 from .models import FCN, save_model
@@ -9,7 +12,7 @@ import torch.utils.tensorboard as tb
 
 def train(args):
     from os import path
-    model = FCN()
+    model = FCN(num_classes=5)
     train_logger, valid_logger = None, None
     if args.log_dir is not None:
         train_logger = tb.SummaryWriter(path.join(args.log_dir, 'train'), flush_secs=1)
@@ -26,15 +29,15 @@ def train(args):
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    model = FCN().to(device)
+    model = FCN(num_classes=5).to(device)
     if args.continue_training:
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'cnn.th')))
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     loss = torch.nn.CrossEntropyLoss()
 
-    train_data = load_data('data/train')
-    valid_data = load_data('data/valid')
+    train_data = load_dense_data('dense_data/train')
+    valid_data = load_dense_data('dense_data/valid')
 
     global_step = 0
     for epoch in range(args.num_epoch):
@@ -42,7 +45,7 @@ def train(args):
         acc_vals = []
         for img, label in train_data:
             img, label = img.to(device), label.to(device)
-
+            label = label.to(torch.long) 
             logit = model(img)
             loss_val = loss(logit, label)
             acc_val = accuracy(logit, label)
@@ -99,7 +102,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--log_dir')
     # Put custom arguments here
-    parser.add_argument('-n', '--num_epoch', type=int, default=50)
+    parser.add_argument('-n', '--num_epoch', type=int, default=2)
     parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
     parser.add_argument('-c', '--continue_training', action='store_true')
 

@@ -32,7 +32,7 @@ class SuperTuxDataset(Dataset):
         files = os.listdir(dataset_path)
         
         # Filter the files to get only those ending with '_seg.png'
-        image_files = [file for file in files if file.endswith('_seg.png')]
+        image_files = [file for file in files if file.endswith('.jpg')]
 
         # Iterate over the filtered image files
         for image_name in image_files:
@@ -41,6 +41,7 @@ class SuperTuxDataset(Dataset):
 
             # Load the image file
             image = Image.open(os.path.join(dataset_path, image_name))
+            image=image.convert("L")
             image.load()  # To avoid OS error for too many open files
             self.data.append((to_tensor(image), label_id))
 
@@ -75,6 +76,7 @@ class DenseSuperTuxDataset(Dataset):
         b = self.files[idx]
         im = Image.open(b + '_im.jpg')
         lbl = Image.open(b + '_seg.png')
+
         if self.transform is not None:
             im, lbl = self.transform(im, lbl)
         return im, lbl
@@ -85,7 +87,7 @@ def load_data(dataset_path, num_workers=1, batch_size=128, **kwargs):
     return DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True, drop_last=True)
 
 
-def load_dense_data(dataset_path, num_workers=1, batch_size=32, **kwargs):
+def load_dense_data(dataset_path, num_workers=1, batch_size=128, **kwargs):
     dataset = DenseSuperTuxDataset(dataset_path, **kwargs)
     return DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True, drop_last=True)
 
