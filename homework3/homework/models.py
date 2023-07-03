@@ -55,59 +55,71 @@ class FCN(nn.Module):
         super().__init__()
 
         # Encoder
-        self.enc_conv1 = DoubleConv(in_channels, 64)
+        self.enc_conv1 = DoubleConv(in_channels, 32)  # from 64
         self.enc_pool1 = nn.MaxPool2d(2)
-        self.enc_conv2 = DoubleConv(64, 128)
+        self.enc_conv2 = DoubleConv(32, 64)  # from 128
         self.enc_pool2 = nn.MaxPool2d(2)
-        self.enc_conv3 = DoubleConv(128, 256)
+        self.enc_conv3 = DoubleConv(64, 128)  # from 256
         self.enc_pool3 = nn.MaxPool2d(2)
-        self.enc_conv4 = DoubleConv(256, 512)
+        self.enc_conv4 = DoubleConv(128, 256)  # from 512
         self.enc_pool4 = nn.MaxPool2d(2)
 
         # Bridge
-        self.bridge_conv = DoubleConv(512, 1024)
+        self.bridge_conv = DoubleConv(256, 512)  # from 1024
 
         # Decoder
-        self.dec_upconv1 = nn.ConvTranspose2d(1024, 512, kernel_size=2, stride=2)
-        self.dec_conv1 = DoubleConv(1024, 512)
-        self.dec_upconv2 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
-        self.dec_conv2 = DoubleConv(512, 256)
-        self.dec_upconv3 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
-        self.dec_conv3 = DoubleConv(256, 128)
-        self.dec_upconv4 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
-        self.dec_conv4 = DoubleConv(128, 64)
+        self.dec_upconv1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)  # from 1024, 512
+        self.dec_conv1 = DoubleConv(512, 256)  # from 1024, 512
+        self.dec_upconv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)  # from 512, 256
+        self.dec_conv2 = DoubleConv(256, 128)  # from 512, 256
+        self.dec_upconv3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)  # from 256, 128
+        self.dec_conv3 = DoubleConv(128, 64)  # from 256, 128
+        self.dec_upconv4 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)  # from 128, 64
+        self.dec_conv4 = DoubleConv(64, 32)  # from 128, 64
 
         # Output
-        self.output_conv = nn.Conv2d(64,  num_classes, kernel_size=1)
+        self.output_conv = nn.Conv2d(32,  num_classes, kernel_size=1)  # from 64
 
     def forward(self, x):
         # Encoder
         enc1 = self.enc_conv1(x)
-        enc2 = self.enc_conv2(self.enc_pool1(enc1))
-        enc3 = self.enc_conv3(self.enc_pool2(enc2))
-        enc4 = self.enc_conv4(self.enc_pool3(enc3))
+        enc2 = self.enc_conv2(enc1)
+        enc3 = self.enc_conv3(enc2)
+        enc4 = self.enc_conv4(enc3)
 
         # Bridge
-        bridge = self.bridge_conv(self.enc_pool4(enc4))
+        bridge = self.bridge_conv(enc4)
 
         # Decoder
         dec1 = self.dec_upconv1(bridge)
-        dec1 = torch.cat((enc4, dec1), dim=1)
+        # Resize to match size of corresponding encoder layer output
+        enc4_resized = F.interpolate(enc4, size=dec1.shape[2:])
+        dec1 = torch.cat((enc4_resized, dec1), dim=1)
         dec1 = self.dec_conv1(dec1)
+
         dec2 = self.dec_upconv2(dec1)
-        dec2 = torch.cat((enc3, dec2), dim=1)
+        # Resize to match size of corresponding encoder layer output
+        enc3_resized = F.interpolate(enc3, size=dec2.shape[2:])
+        dec2 = torch.cat((enc3_resized, dec2), dim=1)
         dec2 = self.dec_conv2(dec2)
+
         dec3 = self.dec_upconv3(dec2)
-        dec3 = torch.cat((enc2, dec3), dim=1)
+        # Resize to match size of corresponding encoder layer output
+        enc2_resized = F.interpolate(enc2, size=dec3.shape[2:])
+        dec3 = torch.cat((enc2_resized, dec3), dim=1)
         dec3 = self.dec_conv3(dec3)
+
         dec4 = self.dec_upconv4(dec3)
-        dec4 = torch.cat((enc1, dec4), dim=1)
+        # Resize to match size of corresponding encoder layer output
+        enc1_resized = F.interpolate(enc1, size=dec4.shape[2:])
+        dec4 = torch.cat((enc1_resized, dec4), dim=1)
         dec4 = self.dec_conv4(dec4)
 
         # Output
         output = self.output_conv(dec4)
 
         return output
+
     
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):

@@ -8,6 +8,7 @@ from .models import FCN, save_model
 from .utils import load_dense_data, DENSE_CLASS_DISTRIBUTION, ConfusionMatrix, accuracy, load_data
 from . import dense_transforms
 import torch.utils.tensorboard as tb
+from torchsummary import summary
 
 
 def train(args):
@@ -29,7 +30,9 @@ def train(args):
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
+    input_size = (1,128,96)
     model = FCN(num_classes=5).to(device)
+    summary = (input_size, model)
     if args.continue_training:
         model.load_state_dict(torch.load(path.join(path.dirname(path.abspath(__file__)), 'cnn.th')))
 
