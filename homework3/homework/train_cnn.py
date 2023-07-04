@@ -70,7 +70,7 @@ if __name__ == '__main__':
     
 
     parser.add_argument('-m', '--model', choices=['cnn'], default='cnn')
-    parser.add_argument('-n', '--num_epoch', type=int, default=10)
+    parser.add_argument('-n', '--num_epoch', type=int, default=6)
     parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
     parser.add_argument('-c', '--continue_training', action='store_true')
 
