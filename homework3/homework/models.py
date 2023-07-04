@@ -54,31 +54,32 @@ class FCN(nn.Module):
     def __init__(self, in_channels=3,  num_classes=5):
         super().__init__()
 
-        # Encoder
-        self.enc_conv1 = DoubleConv(in_channels, 32)  # from 64
+                # Encoder
+        self.enc_conv1 = DoubleConv(in_channels, 8)  # from 16
         self.enc_pool1 = nn.MaxPool2d(2)
-        self.enc_conv2 = DoubleConv(32, 64)  # from 128
+        self.enc_conv2 = DoubleConv(8, 16)  # from 32
         self.enc_pool2 = nn.MaxPool2d(2)
-        self.enc_conv3 = DoubleConv(64, 128)  # from 256
+        self.enc_conv3 = DoubleConv(16, 32)  # from 64
         self.enc_pool3 = nn.MaxPool2d(2)
-        self.enc_conv4 = DoubleConv(128, 256)  # from 512
+        self.enc_conv4 = DoubleConv(32, 64)  # from 128
         self.enc_pool4 = nn.MaxPool2d(2)
 
         # Bridge
-        self.bridge_conv = DoubleConv(256, 512)  # from 1024
+        self.bridge_conv = DoubleConv(64, 128)  # from 256
 
         # Decoder
-        self.dec_upconv1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)  # from 1024, 512
-        self.dec_conv1 = DoubleConv(512, 256)  # from 1024, 512
-        self.dec_upconv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)  # from 512, 256
-        self.dec_conv2 = DoubleConv(256, 128)  # from 512, 256
-        self.dec_upconv3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)  # from 256, 128
-        self.dec_conv3 = DoubleConv(128, 64)  # from 256, 128
-        self.dec_upconv4 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)  # from 128, 64
-        self.dec_conv4 = DoubleConv(64, 32)  # from 128, 64
+        self.dec_upconv1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)  # from 256, 128
+        self.dec_conv1 = DoubleConv(128, 64)  # from 256, 128
+        self.dec_upconv2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)  # from 128, 64
+        self.dec_conv2 = DoubleConv(64, 32)  # from 128, 64
+        self.dec_upconv3 = nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2)  # from 64, 32
+        self.dec_conv3 = DoubleConv(32, 16)  # from 64, 32
+        self.dec_upconv4 = nn.ConvTranspose2d(16, 8, kernel_size=2, stride=2)  # from 32, 16
+        self.dec_conv4 = DoubleConv(16, 8)  # from 32, 16
 
         # Output
-        self.output_conv = nn.Conv2d(32,  num_classes, kernel_size=1)  # from 64
+        self.output_conv = nn.Conv2d(8,  num_classes, kernel_size=1)  # from 16
+
 
     def forward(self, x):
         # Encoder
