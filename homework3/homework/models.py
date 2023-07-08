@@ -1,140 +1,87 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
+class CNNClassifier(torch.nn.Module):
+    class Block(torch.nn.Module):
+        def __init__(self, n_input, n_output, kernel_size=3, stride=2):
+            super().__init__()
+            self.c1 = torch.nn.Conv2d(n_input, n_output, kernel_size=kernel_size, padding=kernel_size // 2,
+                                      stride=stride, bias=False)
+            self.c2 = torch.nn.Conv2d(n_output, n_output, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
+            self.c3 = torch.nn.Conv2d(n_output, n_output, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
+            self.b1 = torch.nn.BatchNorm2d(n_output)
+            self.b2 = torch.nn.BatchNorm2d(n_output)
+            self.b3 = torch.nn.BatchNorm2d(n_output)
+            self.skip = torch.nn.Conv2d(n_input, n_output, kernel_size=1, stride=stride)
+
+        def forward(self, x):
+            return F.relu(self.b3(self.c3(F.relu(self.b2(self.c2(F.relu(self.b1(self.c1(x)))))))) + self.skip(x))
+
+    def __init__(self, layers=[16, 32, 64, 128], n_output_channels=6, kernel_size=3):
         super().__init__()
-        padding = kernel_size // 2
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, stride, padding)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-        if in_channels != out_channels:  # Add 1x1 convolution for channel matching
-            self.conv_res = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride)
-        else:
-            self.conv_res = None
+        self.input_mean = torch.Tensor([0.3235, 0.3310, 0.3445])
+        self.input_std = torch.Tensor([0.2533, 0.2224, 0.2483])
 
-    def forward(self, x):
-        residual = x
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        if self.conv_res is not None:
-            residual = self.conv_res(residual)
-        out += residual
-        out = F.relu(out)
-        return out
-
-
-class CNNClassifier(nn.Module):
-    def __init__(self, layers=[16, 32, 64, 128], n_input_channels=1, n_output_channels=6, kernel_size=5, dropout_p=0.5):
-        super().__init__()
-
-        self.network = []
-        c = n_input_channels
+        L = []
+        c = 3
         for l in layers:
-            self.network.extend([
-                ResidualBlock(c, l),
-                nn.BatchNorm2d(l),  # Batch normalization
-                nn.ReLU(),
-                nn.Dropout(dropout_p)  # Dropout
-            ])
+            L.append(self.Block(c, l, kernel_size, 2))
             c = l
-        self.network = nn.Sequential(*self.network)
-        self.classifier = nn.Linear(c, n_output_channels)
+        self.network = torch.nn.Sequential(*L)
+        self.classifier = torch.nn.Linear(c, n_output_channels)
 
     def forward(self, x):
-        x = self.network(x)
-        x = x.mean(dim=[2, 3])  # Average pooling across spatial dimensions
-        return self.classifier(x)
+        z = self.network((x - self.input_mean[None, :, None, None].to(x.device)) / self.input_std[None, :, None, None].to(x.device))
+        return self.classifier(z.mean(dim=[2, 3]))
 
 
-class FCN(nn.Module):
-    def __init__(self, in_channels=3,  num_classes=5):
+class FCN(torch.nn.Module):
+    class UpBlock(torch.nn.Module):
+        def __init__(self, n_input, n_output, kernel_size=3, stride=2):
+            super().__init__()
+            self.c1 = torch.nn.ConvTranspose2d(n_input, n_output, kernel_size=kernel_size, padding=kernel_size // 2,
+                                      stride=stride, output_padding=1)
+
+        def forward(self, x):
+            return F.relu(self.c1(x))
+
+    def __init__(self, layers=[16, 32, 64, 128], n_output_channels=5, kernel_size=3, use_skip=True):
         super().__init__()
+        self.input_mean = torch.Tensor([0.2788, 0.2657, 0.2629])
+        self.input_std = torch.Tensor([0.2064, 0.1944, 0.2252])
 
-                # Encoder
-        self.enc_conv1 = DoubleConv(in_channels, 8)  # from 16
-        self.enc_pool1 = nn.MaxPool2d(2)
-        self.enc_conv2 = DoubleConv(8, 16)  # from 32
-        self.enc_pool2 = nn.MaxPool2d(2)
-        self.enc_conv3 = DoubleConv(16, 32)  # from 64
-        self.enc_pool3 = nn.MaxPool2d(2)
-        self.enc_conv4 = DoubleConv(32, 64)  # from 128
-        self.enc_pool4 = nn.MaxPool2d(2)
-
-        # Bridge
-        self.bridge_conv = DoubleConv(64, 128)  # from 256
-
-        # Decoder
-        self.dec_upconv1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)  # from 256, 128
-        self.dec_conv1 = DoubleConv(128, 64)  # from 256, 128
-        self.dec_upconv2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)  # from 128, 64
-        self.dec_conv2 = DoubleConv(64, 32)  # from 128, 64
-        self.dec_upconv3 = nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2)  # from 64, 32
-        self.dec_conv3 = DoubleConv(32, 16)  # from 64, 32
-        self.dec_upconv4 = nn.ConvTranspose2d(16, 8, kernel_size=2, stride=2)  # from 32, 16
-        self.dec_conv4 = DoubleConv(16, 8)  # from 32, 16
-
-        # Output
-        self.output_conv = nn.Conv2d(8,  num_classes, kernel_size=1)  # from 16
-
+        c = 3
+        self.use_skip = use_skip
+        self.n_conv = len(layers)
+        skip_layer_size = [3] + layers[:-1]
+        for i, l in enumerate(layers):
+            self.add_module('conv%d' % i, CNNClassifier.Block(c, l, kernel_size, 2))
+            c = l
+        for i, l in list(enumerate(layers))[::-1]:
+            self.add_module('upconv%d' % i, self.UpBlock(c, l, kernel_size, 2))
+            c = l
+            if self.use_skip:
+                c += skip_layer_size[i]
+        self.classifier = torch.nn.Conv2d(c, n_output_channels, 1)
 
     def forward(self, x):
-        # Encoder
-        enc1 = self.enc_conv1(x)
-        enc2 = self.enc_conv2(enc1)
-        enc3 = self.enc_conv3(enc2)
-        enc4 = self.enc_conv4(enc3)
+        z = (x - self.input_mean[None, :, None, None].to(x.device)) / self.input_std[None, :, None, None].to(x.device)
+        up_activation = []
+        for i in range(self.n_conv):
+            # Add all the information required for skip connections
+            up_activation.append(z)
+            z = self._modules['conv%d'%i](z)
 
-        # Bridge
-        bridge = self.bridge_conv(enc4)
+        for i in reversed(range(self.n_conv)):
+            z = self._modules['upconv%d'%i](z)
+            # Fix the padding
+            z = z[:, :, :up_activation[i].size(2), :up_activation[i].size(3)]
+            # Add the skip connection
+            if self.use_skip:
+                z = torch.cat([z, up_activation[i]], dim=1)
+        return self.classifier(z)
 
-        # Decoder
-        dec1 = self.dec_upconv1(bridge)
-        # Resize to match size of corresponding encoder layer output
-        enc4_resized = F.interpolate(enc4, size=dec1.shape[2:])
-        dec1 = torch.cat((enc4_resized, dec1), dim=1)
-        dec1 = self.dec_conv1(dec1)
-
-        dec2 = self.dec_upconv2(dec1)
-        # Resize to match size of corresponding encoder layer output
-        enc3_resized = F.interpolate(enc3, size=dec2.shape[2:])
-        dec2 = torch.cat((enc3_resized, dec2), dim=1)
-        dec2 = self.dec_conv2(dec2)
-
-        dec3 = self.dec_upconv3(dec2)
-        # Resize to match size of corresponding encoder layer output
-        enc2_resized = F.interpolate(enc2, size=dec3.shape[2:])
-        dec3 = torch.cat((enc2_resized, dec3), dim=1)
-        dec3 = self.dec_conv3(dec3)
-
-        dec4 = self.dec_upconv4(dec3)
-        # Resize to match size of corresponding encoder layer output
-        enc1_resized = F.interpolate(enc1, size=dec4.shape[2:])
-        dec4 = torch.cat((enc1_resized, dec4), dim=1)
-        dec4 = self.dec_conv4(dec4)
-
-        # Output
-        output = self.output_conv(dec4)
-
-        return output
-
-    
-class DoubleConv(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(DoubleConv, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.relu(out)
-        out = self.conv2(out)
-        out = self.relu(out)
-        return out
 
 model_factory = {
     'cnn': CNNClassifier,

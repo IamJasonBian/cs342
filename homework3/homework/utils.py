@@ -1,5 +1,4 @@
 import torch
-import os
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
@@ -13,39 +12,26 @@ DENSE_LABEL_NAMES = ['background', 'kart', 'track', 'bomb/projectile', 'pickup/n
 DENSE_CLASS_DISTRIBUTION = [0.52683655, 0.02929112, 0.4352989, 0.0044619, 0.00411153]
 
 
-
-
 class SuperTuxDataset(Dataset):
-    def __init__(self, dataset_path):
+    def __init__(self, dataset_path, transform=transforms.ToTensor()):
         """
         Your code here
         Hint: Use your solution (or the master solution) to HW1 / HW2
         Hint: If you're loading (and storing) PIL images here, make sure to call image.load(),
               to avoid an OS error for too many open files.
-        Hint: Do not store torch.Tensor's as data here, but use PIL images, torchvision.transforms expects PIL images
-              for most transformations.
         """
+        import csv
+        from os import path
         self.data = []
-        to_tensor = transforms.ToTensor()
-
-        # List all the files in the dataset_path
-        files = os.listdir(dataset_path)
-        
-        # Filter the files to get only those ending with '_seg.png'
-        image_files = [file for file in files if file.endswith('.jpg')]
-
-        # Iterate over the filtered image files
-        for image_name in image_files:
-            # Replace this part with actual label fetching logic if available.
-            label_id = 0  # Assume that the label of the image is not known. 
-
-            # Load the image file
-            image = Image.open(os.path.join(dataset_path, image_name))
-            image=image.convert("L")
-            image.load()  # To avoid OS error for too many open files
-            self.data.append((to_tensor(image), label_id))
-
-
+        self.transform = transform
+        with open(path.join(dataset_path, 'labels.csv'), newline='') as f:
+            reader = csv.reader(f)
+            for fname, label, _ in reader:
+                if label in LABEL_NAMES:
+                    image = Image.open(path.join(dataset_path, fname))
+                    image.load()
+                    label_id = LABEL_NAMES.index(label)
+                    self.data.append((image, label_id))
 
     def __len__(self):
         """
@@ -56,8 +42,12 @@ class SuperTuxDataset(Dataset):
     def __getitem__(self, idx):
         """
         Your code here
+        Hint: Make sure to apply the transform here, if you use any randomized transforms.
+              This ensures that a different random transform is used every time
         """
-        return self.data[idx] 
+        # return self.data[idx]
+        img, lbl = self.data[idx]
+        return self.transform(img), lbl
 
 
 class DenseSuperTuxDataset(Dataset):
@@ -76,18 +66,17 @@ class DenseSuperTuxDataset(Dataset):
         b = self.files[idx]
         im = Image.open(b + '_im.jpg')
         lbl = Image.open(b + '_seg.png')
-
         if self.transform is not None:
             im, lbl = self.transform(im, lbl)
         return im, lbl
 
 
-def load_data(dataset_path, num_workers=1, batch_size=128, **kwargs):
+def load_data(dataset_path, num_workers=0, batch_size=128, **kwargs):
     dataset = SuperTuxDataset(dataset_path, **kwargs)
     return DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True, drop_last=True)
 
 
-def load_dense_data(dataset_path, num_workers=1, batch_size=128, **kwargs):
+def load_dense_data(dataset_path, num_workers=0, batch_size=32, **kwargs):
     dataset = DenseSuperTuxDataset(dataset_path, **kwargs)
     return DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True, drop_last=True)
 
@@ -142,11 +131,8 @@ class ConfusionMatrix(object):
 
     @property
     def per_class(self):
-        return self.matrix / (self.matrix.sum(1, keepdims=True) + 1e-5)
+        return (self.matrix / (self.matrix.sum(1, keepdim=True) + 1e-5)).cpu()
 
-def accuracy(outputs, labels):
-    outputs_idx = outputs.max(1)[1].type_as(labels)
-    return outputs_idx.eq(labels).float().mean()
 
 if __name__ == '__main__':
     dataset = DenseSuperTuxDataset('dense_data/train', transform=dense_transforms.Compose(
