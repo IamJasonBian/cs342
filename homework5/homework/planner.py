@@ -17,19 +17,31 @@ class Planner(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        """
-        Your code here
-        """
-        raise NotImplementedError('Planner.__init__')
+        # Defining a simple convolutional network
+        self.conv1 = torch.nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
+        self.conv2 = torch.nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.conv3 = torch.nn.Conv2d(64, 1, kernel_size=1, stride=1, padding=0)
+        
+        self.max_pool = torch.nn.MaxPool2d(kernel_size=2)
+        self.relu = torch.nn.ReLU()
 
     def forward(self, img):
-        """
-        Your code here
-        Predict the aim point in image coordinate, given the supertuxkart image
-        @img: (B,3,96,128)
-        return (B,2)
-        """
-        raise NotImplementedError("Planner.forward")
+        # Pass through the network layers
+        x = self.conv1(img)
+        x = self.relu(x)
+        x = self.max_pool(x)
+
+        x = self.conv2(x)
+        x = self.relu(x)
+        x = self.max_pool(x)
+
+        x = self.conv3(x)
+
+        # Compute spatial argmax
+        aim_point = spatial_argmax(x)
+
+        return aim_point
+
 
 
 def save_model(model):
