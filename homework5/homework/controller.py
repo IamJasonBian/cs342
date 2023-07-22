@@ -1,6 +1,9 @@
 import pystk
 
 
+import pystk
+import numpy as np
+
 def control(aim_point, current_vel):
     """
     Set the Action for the low-level controller
@@ -10,15 +13,32 @@ def control(aim_point, current_vel):
     """
     action = pystk.Action()
 
-    """
-    Your code here
-    Hint: Use action.acceleration (0..1) to change the velocity. Try targeting a target_velocity (e.g. 20).
-    Hint: Use action.brake to True/False to brake (optionally)
-    Hint: Use action.steer to turn the kart towards the aim_point, clip the steer angle to -1..1
-    Hint: You may want to use action.drift=True for wide turns (it will turn faster)
-    """
+    # Set the target velocity
+    target_velocity = 20
+
+    # Control the kart acceleration
+    if current_vel < target_velocity:
+        action.acceleration = 1  # accelerate if current velocity is less than the target
+    else:
+        action.acceleration = 0  # stop accelerating if we've reached the target velocity
+
+    # Control the kart braking
+    if current_vel > target_velocity:
+        action.brake = True  # apply brakes if current velocity is more than the target
+    else:
+        action.brake = False  # release brakes if we're below the target velocity
+
+    # Control the kart steering
+    action.steer = np.clip(aim_point[0], -1, 1)
+
+    # Control the kart drifting
+    if np.abs(action.steer) > 0.5:
+        action.drift = True  # start drifting for wide turns
+    else:
+        action.drift = False  # stop drifting for narrower turns
 
     return action
+
 
 
 if __name__ == '__main__':
